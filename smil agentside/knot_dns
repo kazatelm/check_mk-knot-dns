@@ -1,0 +1,34 @@
+#!/bin/bash
+#Smil Jeskynka Kazatel - Knot Dns statistic agentside
+#
+
+stats=/var/lib/knot/stats/stats.yaml
+
+if [ -f "$stats" ]
+   then
+     echo "<<<knot_dns>>>"
+   else
+     echo "file with statistics not exists"
+     exit
+fi
+
+for STATISTICS in `cat $stats | sed 's/^ *//'`
+do
+        if [[ "$STATISTICS" == "query-type:" ]]
+        then
+                MODIFY=`cat $stats | sed -e '1,/query-type:/d' -e '//,$d' | sed 's/^ *//'`
+                echo -e "query-type:"
+                echo -e "$MODIFY"
+        fi
+done
+
+for STATISTICS in `cat $stats | sed 's/^ *//'`
+do
+
+        if [[ "$STATISTICS" == "response-code:" ]]
+        then
+                MODIFY=`cat $stats | sed -e '1,/response-code:/d' -e '/reply-nodata:/,$d' | sed 's/^ *//'`
+                echo -e "response-code:"
+                echo -e "$MODIFY"
+        fi
+done

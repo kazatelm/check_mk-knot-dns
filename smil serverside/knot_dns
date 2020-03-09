@@ -1,0 +1,74 @@
+#!/usr/bin/python
+# Smil Jeskynka Kazatel ver. 2.1
+# based on Check_mk-bind
+
+knot_dns_default_levels = (500,1000)
+
+def inventory_knot_dns(info):
+    if len(info):
+        return [("knot_dns" , "knot_dns_default_levels")]
+
+def get_stats(info):
+    label = None
+    stats = {}
+    for e in info:
+        try:
+            value = int(e[-1])
+        except ValueError:
+            label = " ".join(e)
+        else:
+            key = " ".join(e[:-1])
+            stats.setdefault(label, {})[key] = value
+    return stats
+
+def check_knot_dns(item, params, info):
+    stats = get_stats(info)
+    now = time.time()
+    perfdata = []
+    warn,crit = params
+    queries = stats.get("query-type:", {}).items()
+    queriestotal = stats.get("server-operation:", {}).items()
+    message = "nok"
+    status = 0
+    for r_type, count in stats.get("response-code:", {}).items():
+        try:
+            r_type = {
+        "NOERROR:": "NOERROR",
+        "FORMERR:": "FORMERR",
+        "NXDOMAIN:": "NXDOMAIN",
+        "REFUSED:": "REFUSED",
+        "BADKEY:": "BADKEY",
+            }[r_type]
+        except KeyError:
+            continue
+        else:
+            queries.append((r_type, count))
+    for r_type, count in stats.get("server-operation:", {}).items():
+        try:
+            r_type = {"query:": "query-total"}[r_type] 
+        except KeyError:
+            continue
+        else:
+            queries.append((r_type, count))
+    for r_type, count in queries:
+        menofunkce = "funkce_%s" % (r_type)
+        rate = get_rate(menofunkce,now, count)
+        ratemin = (rate*60)
+        perfdata.append((r_type, ratemin))
+        if (r_type == "query-total" and ratemin >= crit):
+            status = 2
+            message = "Critical - unexpected trafic %s - %.2f /min (warn/crit above %s / %s )" % (r_type, ratemin, warn, crit)
+        elif (r_type == "query-total" and ratemin >= warn):
+            status = 1
+            message = "Warn - unexpected trafic %s - %.2f /min (warn/crit above %s / %s ) " % (r_type, ratemin, warn, crit)
+        elif (r_type == "query-total" and ratemin < warn):
+            status = 0
+            message = "Ok - %s - %.2f (warn/crit above %s/%s)" % (r_type, ratemin, warn, crit)
+    return (status, message, perfdata)
+
+check_info["knot_dns"] = {
+    "check_function": check_knot_dns,
+    "inventory_function": inventory_knot_dns,
+    "service_description": "Knot DNS Statistics",
+    "has_perfdata": True,
+}
